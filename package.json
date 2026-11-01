@@ -1,0 +1,29 @@
+{
+  "name": "civicfix",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/web",
+    "contracts",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev": "npm run build --workspace @civicfix/shared && concurrently -k -n api,web -c blue,green \"npm:dev --workspace @civicfix/api\" \"npm:dev --workspace @civicfix/web\"",
+    "build": "npm run build --workspace @civicfix/shared && npm run build --workspace @civicfix/api && npm run build --workspace @civicfix/web && npm run contracts:build",
+    "typecheck": "npm run typecheck --workspace @civicfix/shared && npm run typecheck --workspace @civicfix/api && npm run typecheck --workspace @civicfix/web",
+    "test": "npm run test --workspace @civicfix/shared && npm run test --workspace @civicfix/api && npm run test --workspace @civicfix/contracts",
+    "db:generate": "npm run db:generate --workspace @civicfix/api",
+    "db:migrate": "npm run db:migrate --workspace @civicfix/api",
+    "db:seed": "npm run db:seed --workspace @civicfix/api",
+    "contracts:build": "npm run build --workspace @civicfix/contracts",
+    "contracts:test": "npm run test --workspace @civicfix/contracts",
+    "contracts:node": "npm run node --workspace @civicfix/contracts",
+    "contracts:deploy:local": "npm run deploy:local --workspace @civicfix/contracts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

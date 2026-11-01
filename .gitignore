@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.next/
+coverage/
+.env
+.env.*
+!.env.example
+apps/api/storage/
+apps/api/prisma/*.db
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+playwright-report/
+test-results/

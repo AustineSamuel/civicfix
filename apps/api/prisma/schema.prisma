@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  RESIDENT
+  COMMUNITY_REVIEWER
+  ORGANIZATION_REPRESENTATIVE
+  INDEPENDENT_VERIFIER
+  ADMINISTRATOR
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ReportStatus {
+  NEW
+  UNDER_REVIEW
+  NEEDS_MORE_INFORMATION
+  REJECTED
+  VERIFIED
+  ASSIGNED
+  IN_PROGRESS
+  REPAIR_REPORTED_COMPLETE
+  PENDING_INDEPENDENT_VERIFICATION
+  REOPENED_FOR_REPAIR
+  RESOLVED
+  DUPLICATE
+}
+
+enum Category {
+  ROAD
+  STREETLIGHT
+  WATER
+  DRAINAGE
+  SANITATION
+  COMMUNITY_FACILITY
+  OTHER
+}
+
+enum EvidenceType {
+  INITIAL_REPORT
+  ADDITIONAL_INFORMATION
+  REPAIR
+  OTHER
+}
+
+enum BlockchainStatus {
+  NOT_SUBMITTED
+  SUBMITTING
+  PENDING
+  CONFIRMED
+  FAILED
+  VERIFIED
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  displayName  String
+  accountStatus AccountStatus @default(ACTIVE)
+  roles        UserRole[]
+  reports      Report[]      @relation("ReportReporter")
+  repairClaims Report[]      @relation("RepairClaimant")
+  organizationMemberships OrganizationMembership[]
+  evidence     Evidence[]
+  histories    StatusHistory[]
+  auditEvents  AuditEvent[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model UserRole {
+  userId    String
+  role      Role
+  grantedBy String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+}
+
+model Organization {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  description        String
+  organizationType   String
+  verificationStatus String   @default("PENDING")
+  members            OrganizationMembership[]
+  reports            Report[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model OrganizationMembership {
+  organizationId String
+  userId         String
+  permission     String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, userId])
+}
+
+model Report {
+  id                 String       @id @default(cuid())
+  publicCaseNumber   String       @unique
+  title              String
+  description        String
+  category           Category
+  approximateLocation String
+  latitude           Float?
+  longitude          Float?
+  locationPrecision  String       @default("APPROXIMATE")
+  currentStatus      ReportStatus @default(NEW)
+  reporterId         String
+  reporter           User         @relation("ReportReporter", fields: [reporterId], references: [id])
+  repairClaimantId   String?
+  repairClaimant     User?        @relation("RepairClaimant", fields: [repairClaimantId], references: [id])
+  organizationId     String?
+  organization       Organization? @relation(fields: [organizationId], references: [id])
+  evidence           Evidence[]
+  history            StatusHistory[]
+  blockchainRecords  BlockchainTransaction[]
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([currentStatus, createdAt])
+  @@index([category, currentStatus])
+  @@index([reporterId, createdAt])
+}
+
+model Evidence {
+  id              String       @id @default(cuid())
+  reportId        String
+  report          Report       @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  uploaderId      String
+  uploader        User         @relation(fields: [uploaderId], references: [id])
+  storageKey      String       @unique
+  contentHash     String
+  manifestHash    String
+  mimeType        String
+  fileSize        Int
+  evidenceType    EvidenceType @default(INITIAL_REPORT)
+  moderationStatus String      @default("PENDING")
+  createdAt       DateTime     @default(now())
+
+  @@index([reportId, createdAt])
+}
+
+model StatusHistory {
+  id              String          @id @default(cuid())
+  reportId        String
+  report          Report          @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  previousStatus  ReportStatus?
+  newStatus       ReportStatus
+  actorId         String
+  actor           User            @relation(fields: [actorId], references: [id])
+  reason          String
+  evidenceIds     String[]        @default([])
+  auditEventHash  String
+  blockchainStatus BlockchainStatus @default(NOT_SUBMITTED)
+  transactionHash String?
+  createdAt       DateTime        @default(now())
+
+  @@index([reportId, createdAt])
+  @@unique([auditEventHash])
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  subjectId  String?
+  metadata   Json
+  createdAt  DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model BlockchainTransaction {
+  id                String          @id @default(cuid())
+  reportId          String
+  report            Report          @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  caseIdentifier    String
+  commitment        String
+  evidenceIdentifier String?
+  chainId           Int
+  contractAddress   String
+  transactionType   String
+  idempotencyKey    String          @unique
+  transactionHash   String?         @unique
+  processingStatus  BlockchainStatus @default(PENDING)
+  retryCount        Int             @default(0)
+  lastError         String?
+  blockNumber       BigInt?
+  confirmedAt       DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([reportId, processingStatus])
+}
